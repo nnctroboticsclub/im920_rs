@@ -5,3 +5,11 @@ version = 3
 [[package]]
 name = "im920_rs"
 version = "0.1.0"
+dependencies = [
+ "srobo_base",
+]
+
+[[package]]
+name = "srobo_base"
+version = "0.1.0"
+source = "git+https://github.com/nnctroboticsclub/srobo_base.git#5a63ea93d6ed66738286ae671834f0fff1b68aeb"
