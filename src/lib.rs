@@ -3,9 +3,17 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
+use alloc::format;
 use alloc::string::String;
+use alloc::vec::Vec;
 use core::marker::PhantomData;
 use core::time::Duration;
+use srobo_base::communication::{AsyncReadableStream, WritableStream};
+use srobo_base::parser;
+use srobo_base::time::TimeImpl;
+use srobo_base::utils::fifo::{self, Spsc, SpscRx, SpscTx};
+use srobo_base::utils::lined::Lined;
+use srobo_base::utils::swmr::{Swmr, SwmrReader, SwmrWriter};
 
 #[derive(Debug, Clone, Copy)]
 enum LineMarker {
@@ -15,13 +23,13 @@ enum LineMarker {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum IM920Result {
+pub enum IM920Result {
     Ok,
     Ng,
 }
 
 #[derive(Debug)]
-enum IM920Error<E> {
+pub enum IM920Error<E> {
     SerialError(E),
     Fifo(fifo::Error),
     Timeout,
@@ -29,29 +37,30 @@ enum IM920Error<E> {
 }
 
 #[derive(Debug)]
-struct IM920Rx {
-    rssi: u8,
-    packet: IM920Packet,
+pub struct IM920Rx {
+    pub rssi: u8,
+    pub packet: IM920Packet,
 }
 
 #[derive(Debug)]
-struct IM920Packet {
-    node_id: u16,
-    data: Vec<u8>,
+pub struct IM920Packet {
+    pub node_id: u16,
+    pub data: Vec<u8>,
 }
 
 type DataCallback = Box<dyn Fn(IM920Rx) -> ()>;
 
-struct IM920<E, S: WritableStream<Error = E>, Time: TimeImpl> {
+pub struct IM920<E, S: WritableStream<Error = E>, Time: TimeImpl> {
     dev_tx: S,
 
     mode_tx: SpscTx<LineMarker, 8>,
 
     node_number: SwmrReader<Option<u16>>,
     version: SwmrReader<Option<String>>,
-    result_rx: SpscRx<IM920Result, 8>,
+    result_rx: SpscRx<IM920Result, 4>,
+    unknown_lines_rx: SpscRx<String, 8>,
 
-    on_data: SwmrWriter<Option<DataCallback>>,
+    on_data_cb: SwmrWriter<Option<DataCallback>>,
 
     time: Time,
 
@@ -59,13 +68,14 @@ struct IM920<E, S: WritableStream<Error = E>, Time: TimeImpl> {
 }
 
 impl<E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<E, S, Time> {
-    fn new(dev_tx: S, mut dev_rx: impl AsyncReadableStream, time: Time) -> IM920<E, S, Time> {
+    pub fn new(dev_tx: S, mut dev_rx: impl AsyncReadableStream, time: Time) -> IM920<E, S, Time> {
         let (mode_tx, mode_rx) = Spsc::new();
 
         let (nn_tx, nn_rx) = Swmr::new(None);
         let (ver_tx, ver_rx) = Swmr::new(None);
         let (on_data_tx, on_data_rx) = Swmr::<Option<DataCallback>>::new(None);
         let (result_tx, result_rx) = Spsc::new();
+        let (unknown_lines_tx, unknown_lines_rx) = Spsc::new();
 
         let lined = Box::into_raw(Box::new(Lined::new()));
 
@@ -113,7 +123,9 @@ impl<E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<E, S, Time> {
                                 result_tx.enqueue(result).expect("Failed to enqueue result");
                             }
                             None => {
-                                println!("Unknown: {:?}", line);
+                                unknown_lines_tx
+                                    .enqueue(line)
+                                    .expect("Failed to enqueue line");
                             }
                         }
                     }
@@ -127,13 +139,18 @@ impl<E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<E, S, Time> {
             node_number: nn_rx,
             version: ver_rx,
             result_rx,
-            on_data: on_data_tx,
+            unknown_lines_rx,
+            on_data_cb: on_data_tx,
             time,
             p: PhantomData,
         }
     }
 
-    fn get_node_number(&mut self, timeout: Duration) -> Result<u16, IM920Error<E>> {
+    pub fn on_data(&mut self, cb: DataCallback) {
+        self.on_data_cb.write(Some(cb));
+    }
+
+    pub fn get_node_number(&mut self, timeout: Duration) -> Result<u16, IM920Error<E>> {
         if self.node_number.is_some() {
             return Ok(self.node_number.unwrap());
         }
@@ -152,7 +169,7 @@ impl<E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<E, S, Time> {
         }
     }
 
-    fn get_version(&mut self, timeout: Duration) -> Result<String, IM920Error<E>> {
+    pub fn get_version(&mut self, timeout: Duration) -> Result<String, IM920Error<E>> {
         if self.version.is_some() {
             return Ok(<Option<String> as Clone>::clone(&self.version)
                 .unwrap()
@@ -187,7 +204,7 @@ impl<E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<E, S, Time> {
         }
     }
 
-    fn transmit_delegate(
+    pub fn transmit_delegate(
         &mut self,
         packet: IM920Packet,
         timeout: Duration,
