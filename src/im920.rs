@@ -18,8 +18,8 @@ use crate::{
 
 type DataCallback = Box<dyn Fn(RxData) -> ()>;
 
-pub struct IM920<E, S: WritableStream<Error = E>, Time: TimeImpl> {
-    dev_tx: S,
+pub struct IM920<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> {
+    dev_tx: &'a mut S,
 
     mode_tx: SpscTx<LineMarker, 8>,
 
@@ -30,13 +30,17 @@ pub struct IM920<E, S: WritableStream<Error = E>, Time: TimeImpl> {
 
     on_data_cb: SwmrWriter<Option<DataCallback>>,
 
-    time: Time,
+    time: &'a Time,
 
     p: PhantomData<E>,
 }
 
-impl<E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<E, S, Time> {
-    pub fn new(dev_tx: S, mut dev_rx: impl AsyncReadableStream, time: Time) -> IM920<E, S, Time> {
+impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> {
+    pub fn new(
+        dev_tx: &'a mut S,
+        dev_rx: &'a mut impl AsyncReadableStream,
+        time: &'a Time,
+    ) -> IM920<'a, E, S, Time> {
         let (mode_tx, mode_rx) = Spsc::new();
 
         let (nn_tx, nn_rx) = Swmr::new(None);
@@ -130,7 +134,7 @@ impl<E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<E, S, Time> {
             .write(b"RDNN\r\n")
             .map_err(|e| Error::SerialError(e))?;
 
-        if self.node_number.wait_available(timeout, &self.time) {
+        if self.node_number.wait_available(timeout, self.time) {
             Ok(self.node_number.unwrap())
         } else {
             Err(Error::Timeout)
@@ -151,7 +155,7 @@ impl<E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<E, S, Time> {
             .write(b"RDVR\r\n")
             .map_err(|e| Error::SerialError(e))?;
 
-        if self.version.wait_available(timeout, &self.time) {
+        if self.version.wait_available(timeout, self.time) {
             Ok(<Option<String> as Clone>::clone(&self.version)
                 .unwrap()
                 .clone())
@@ -165,7 +169,7 @@ impl<E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<E, S, Time> {
             return Ok(self.result_rx.dequeue().unwrap().clone());
         }
 
-        if self.result_rx.wait_available(timeout, &self.time) {
+        if self.result_rx.wait_available(timeout, self.time) {
             Ok(self.result_rx.dequeue().unwrap().clone())
         } else {
             Err(Error::Timeout)

@@ -14,3 +14,5 @@ pub use im920::IM920;
 pub use packet::Packet;
 pub use result::IM920Result;
 pub use rx_data::RxData;
+
+pub mod ffi;

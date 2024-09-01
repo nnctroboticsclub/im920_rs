@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-srobo_base = { git = "https://github.com/nnctroboticsclub/srobo_base.git" }
+# srobo_base = { git = "https://github.com/nnctroboticsclub/srobo_base.git" }
+srobo_base = { path = "/workspaces/srobo_base", features=["alloc"] }
 
 [features]
 default = []
