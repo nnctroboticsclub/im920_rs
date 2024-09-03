@@ -1,6 +1,6 @@
 use core::{ffi::c_void, time::Duration};
 
-use alloc::{boxed::Box, ffi::CString, string::ToString};
+use alloc::{boxed::Box, ffi::CString};
 use srobo_base::{
     communication::{CStreamRx, CStreamTx},
     time::CTime,
@@ -23,6 +23,7 @@ pub extern "C" fn __ffi_cim920_new(
             &mut *time
         }),
     }));
+    // let im920 = null_mut() as *mut CIM920;
 
     im920
 }
@@ -61,7 +62,7 @@ pub extern "C" fn __ffi_cim920_get_version(instance: *mut CIM920, duration_secs:
 
     let string = match im920.get_version(Duration::from_secs_f32(duration_secs)) {
         Ok(version) => version,
-        Err(_) => "".to_string(),
+        Err(_) => return core::ptr::null_mut(),
     };
 
     let string = CString::new(string).unwrap();

@@ -8,6 +8,7 @@ use srobo_base::{
     utils::{
         fifo::{Spsc, SpscRx, SpscTx},
         lined::Lined,
+        string_queue::StringQueue,
         swmr::{Swmr, SwmrReader, SwmrWriter},
     },
 };
@@ -24,9 +25,8 @@ pub struct IM920<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> {
     mode_tx: SpscTx<LineMarker, 8>,
 
     node_number: SwmrReader<Option<u16>>,
-    version: SwmrReader<Option<String>>,
+    version: SwmrReader<[u8; 32]>,
     result_rx: SpscRx<IM920Result, 4>,
-    unknown_lines_rx: SpscRx<String, 8>,
 
     on_data_cb: SwmrWriter<Option<DataCallback>>,
 
@@ -44,10 +44,10 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
         let (mode_tx, mode_rx) = Spsc::new();
 
         let (nn_tx, nn_rx) = Swmr::new(None);
-        let (ver_tx, ver_rx) = Swmr::new(None);
+        let (ver_tx, ver_rx) = Swmr::new([0; 32]);
         let (on_data_tx, on_data_rx) = Swmr::<Option<DataCallback>>::new(None);
         let (result_tx, result_rx) = Spsc::new();
-        let (unknown_lines_tx, unknown_lines_rx) = Spsc::new();
+        let (unknown_lines_tx, _unknown_lines_rx) = StringQueue::<64, 2>::new();
 
         let lined = Box::into_raw(Box::new(Lined::new()));
 
@@ -55,7 +55,7 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
             .on_data(Box::new(move |data| {
                 let lined = unsafe { &mut *lined };
 
-                lined.feed(data);
+                lined.feed(data).expect("Failed to feed data");
 
                 while let Some(data) = lined.get_line() {
                     if data.len() > 2 && data[..3] == [48, 48, 44] {
@@ -77,26 +77,29 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
                             cb(message);
                         }
                     } else {
-                        let line = String::from_utf8(data.to_vec()).unwrap();
                         match mode_rx.dequeue() {
                             Some(LineMarker::Version) => {
-                                ver_tx.write(Some(line));
+                                // if 32 <= data.len() {
+                                //     ver_tx.write(data[..32].try_into().unwrap());
+                                // }
+
+                                // ver_tx.write(data[..32].try_into().unwrap());
                             }
                             Some(LineMarker::NodeNumber) => {
                                 let node_number = parser::u16(&data).unwrap().1;
                                 nn_tx.write(Some(node_number));
                             }
                             Some(LineMarker::Result) => {
-                                let result = match line.as_str() {
-                                    "OK\r\n" => IM920Result::Ok,
-                                    "NG\r\n" => IM920Result::Ng,
-                                    _ => panic!("Unknown result: {:?}", line),
+                                let result = match data[0] {
+                                    b'O' => IM920Result::Ok,
+                                    b'N' => IM920Result::Ng,
+                                    _ => panic!("Unknown result: {:?}", data),
                                 };
                                 result_tx.enqueue(result).expect("Failed to enqueue result");
                             }
                             None => {
                                 unknown_lines_tx
-                                    .enqueue(line)
+                                    .enqueue(data)
                                     .expect("Failed to enqueue line");
                             }
                         }
@@ -111,7 +114,6 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
             node_number: nn_rx,
             version: ver_rx,
             result_rx,
-            unknown_lines_rx,
             on_data_cb: on_data_tx,
             time,
             p: PhantomData,
@@ -141,11 +143,9 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
         }
     }
 
-    pub fn get_version(&mut self, timeout: Duration) -> Result<String, Error<E>> {
-        if self.version.is_some() {
-            return Ok(<Option<String> as Clone>::clone(&self.version)
-                .unwrap()
-                .clone());
+    pub fn get_version(&mut self, timeout: Duration) -> Result<&str, Error<E>> {
+        if self.version[0] != 0 {
+            return Ok(core::str::from_utf8(&*self.version).unwrap());
         }
 
         self.mode_tx
@@ -155,10 +155,8 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
             .write(b"RDVR\r\n")
             .map_err(|e| Error::SerialError(e))?;
 
-        if self.version.wait_available(timeout, self.time) {
-            Ok(<Option<String> as Clone>::clone(&self.version)
-                .unwrap()
-                .clone())
+        if self.version.wait_for(|x| x[0] != 0, timeout, self.time) {
+            Ok(core::str::from_utf8(&*self.version).unwrap())
         } else {
             Err(Error::Timeout)
         }
