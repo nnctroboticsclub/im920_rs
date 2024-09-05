@@ -50,9 +50,11 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
         let (unknown_lines_tx, _unknown_lines_rx) = StringQueue::<64, 2>::new();
 
         let lined = Box::into_raw(Box::new(Lined::new()));
+        let rx_buffer = Box::into_raw(Box::new([0; 128]));
 
         dev_rx
             .on_data(Box::new(move |data| {
+                let rx_buffer = unsafe { &mut *rx_buffer };
                 let lined = unsafe { &mut *lined };
 
                 lined.feed(data).expect("Failed to feed data");
@@ -66,11 +68,16 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
                         let rssi = parser::u8(rssi).unwrap().1;
 
                         let data = &data[11..];
-                        let data = parser::comma_separated_u8(data, 13 /* \r */).unwrap().1;
+                        let len = parser::comma_separated_u8(data, 13 /* \r */, rx_buffer)
+                            .unwrap()
+                            .1;
 
                         let message = RxData {
                             rssi,
-                            packet: Packet { node_id, data },
+                            packet: Packet {
+                                node_id,
+                                data: rx_buffer[..len].try_into().unwrap(),
+                            },
                         };
 
                         if let Some(ref cb) = *on_data_rx {
@@ -79,11 +86,10 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
                     } else {
                         match mode_rx.dequeue() {
                             Some(LineMarker::Version) => {
-                                // if 32 <= data.len() {
-                                //     ver_tx.write(data[..32].try_into().unwrap());
-                                // }
-
-                                // ver_tx.write(data[..32].try_into().unwrap());
+                                let dest = ver_tx.as_mut();
+                                for (i, ch) in data.iter().enumerate().rev() {
+                                    dest[i] = *ch;
+                                }
                             }
                             Some(LineMarker::NodeNumber) => {
                                 let node_number = parser::u16(&data).unwrap().1;
@@ -151,6 +157,7 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
         self.mode_tx
             .enqueue(LineMarker::Version)
             .map_err(|e| Error::Fifo(e))?;
+
         self.dev_tx
             .write(b"RDVR\r\n")
             .map_err(|e| Error::SerialError(e))?;

@@ -1,7 +1,7 @@
 use crate::packet::Packet;
 
 #[derive(Debug)]
-pub struct RxData {
+pub struct RxData<'a> {
     pub rssi: u8,
-    pub packet: Packet,
+    pub packet: Packet<'a>,
 }
