@@ -8,6 +8,16 @@ namespace srobo2::com {
 class CIM920 {
   srobo2::ffi::CIM920* im920_;
 
+  struct Context {
+    std::function<void(uint16_t, uint8_t*, size_t)> cb;
+  };
+
+  static void HandleOnData(const void* ctx, uint16_t from, const uint8_t* data,
+                           size_t len) {
+    auto context = static_cast<const Context*>(ctx);
+    context->cb(from, const_cast<uint8_t*>(data), len);
+  }
+
  public:
   CIM920(srobo2::ffi::CStreamTx* tx, srobo2::ffi::CStreamRx* rx,
          srobo2::ffi::CTime* time) {
@@ -27,16 +37,6 @@ class CIM920 {
     auto len = std::strlen((const char*)ptr);
 
     return std::string((const char*)ptr, len);
-  }
-
-  struct Context {
-    std::function<void(uint16_t, uint8_t*, size_t)> cb;
-  };
-
-  static void HandleOnData(const void* ctx, uint16_t from, const uint8_t* data,
-                           size_t len) {
-    auto context = static_cast<const Context*>(ctx);
-    context->cb(from, const_cast<uint8_t*>(data), len);
   }
 
   void OnData(std::function<void(uint16_t, uint8_t*, size_t)> cb) {
