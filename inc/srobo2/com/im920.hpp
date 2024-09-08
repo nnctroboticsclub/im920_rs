@@ -1,6 +1,11 @@
 #pragma once
+
+#include <functional>
+#include <cstring>
+
 #include <srobo2/ffi/base.hpp>
 #include <srobo2/ffi/im920.hpp>
+#include <robotics/logger/logger.hpp>
 
 robotics::logger::Logger logger{"connectTs", "connectTs"};
 
@@ -11,6 +16,8 @@ class CIM920 {
   struct Context {
     std::function<void(uint16_t, uint8_t*, size_t)> cb;
   };
+
+  Context context_;
 
   static void HandleOnData(const void* ctx, uint16_t from, const uint8_t* data,
                            size_t len) {
@@ -41,7 +48,9 @@ class CIM920 {
 
   void OnData(std::function<void(uint16_t, uint8_t*, size_t)> cb) {
     Context context = {cb};
-    srobo2::ffi::__ffi_cim920_on_data(im920_, &HandleOnData, &context);
+    context_ = context;
+
+    srobo2::ffi::__ffi_cim920_on_data(im920_, &HandleOnData, &context_);
   }
 
   void Send(uint16_t dest, const uint8_t* data, size_t len,
