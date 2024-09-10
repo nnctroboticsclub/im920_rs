@@ -1,10 +1,6 @@
-use core::{
-    ffi::c_void,
-    ptr::{null, null_mut},
-    time::Duration,
-};
+use core::{ffi::c_void, time::Duration};
 
-use alloc::{boxed::Box, ffi::CString};
+use alloc::boxed::Box;
 use srobo_base::{
     communication::{CStreamRx, CStreamTx},
     time::CTime,
