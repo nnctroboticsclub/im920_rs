@@ -62,21 +62,29 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
                 while let Some(data) = lined.get_line() {
                     if data.len() > 2 && data[..3] == [48, 48, 44] {
                         let node_id = &data[3..7];
-                        let node_id = parser::u16(node_id).unwrap().1;
+                        let node_id = match parser::u16(node_id) {
+                            Ok((_, node_id)) => node_id,
+                            _ => continue,
+                        };
 
                         let rssi = &data[8..10];
-                        let rssi = parser::u8(rssi).unwrap().1;
+                        let rssi = match parser::u8(rssi) {
+                            Ok((_, rssi)) => rssi,
+                            _ => continue,
+                        };
 
                         let data = &data[11..];
-                        let len = parser::comma_separated_u8(data, 13 /* \r */, rx_buffer)
-                            .unwrap()
-                            .1;
+                        let len =
+                            match parser::comma_separated_u8(data, 13 /* \r */, rx_buffer) {
+                                Ok((_, len)) => len,
+                                _ => continue,
+                            };
 
                         let message = RxData {
                             rssi,
                             packet: Packet {
                                 node_id,
-                                data: rx_buffer[..len].try_into().unwrap(),
+                                data: &rx_buffer[..len],
                             },
                         };
 
@@ -92,21 +100,22 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
                                 }
                             }
                             Some(LineMarker::NodeNumber) => {
-                                let node_number = parser::u16(&data).unwrap().1;
-                                nn_tx.write(Some(node_number));
+                                let node_number = match parser::u16(&data) {
+                                    Ok((_, node_number)) => node_number,
+                                    _ => continue,
+                                };
+                                let _ = nn_tx.write(Some(node_number));
                             }
                             Some(LineMarker::Result) => {
                                 let result = match data[0] {
                                     b'O' => IM920Result::Ok,
                                     b'N' => IM920Result::Ng,
-                                    _ => panic!("Unknown result: {:?}", data),
+                                    _ => continue,
                                 };
-                                result_tx.enqueue(result).expect("Failed to enqueue result");
+                                let _ = result_tx.enqueue(result);
                             }
                             None => {
-                                unknown_lines_tx
-                                    .enqueue(data)
-                                    .expect("Failed to enqueue line");
+                                let _ = unknown_lines_tx.enqueue(data);
                             }
                         }
                     }
