@@ -11,8 +11,6 @@ class IM910_SRobo1 : public robotics::network::Stream<uint8_t, uint16_t> {
  public:
   IM910_SRobo1(srobo2::com::CIM920 *im920) : im920_(im920) {
     im920->OnData([this](uint16_t from, uint8_t *data, size_t len) {
-      logger.Info("Received data from %d", from);
-      logger.Hex(robotics::logger::core::Level::kInfo, data, len);
       this->DispatchOnReceive(from, data, len);
     });
   }

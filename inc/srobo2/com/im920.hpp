@@ -7,8 +7,6 @@
 #include <srobo2/ffi/im920.hpp>
 #include <robotics/logger/logger.hpp>
 
-robotics::logger::Logger logger{"connectTs", "connectTs"};
-
 namespace srobo2::com {
 class CIM920 {
   srobo2::ffi::CIM920* im920_;
