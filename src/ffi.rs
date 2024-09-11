@@ -56,6 +56,16 @@ pub extern "C" fn __ffi_cim920_get_node_number(instance: *mut CIM920, duration_s
 }
 
 #[no_mangle]
+pub extern "C" fn __ffi_cim920_get_group_number(instance: *mut CIM920, duration_secs: f32) -> u32 {
+    let cim920 = unsafe { &mut *instance };
+    let group_number = cim920
+        .im920
+        .get_group_number(Duration::from_secs_f32(duration_secs));
+
+    group_number.unwrap_or(0)
+}
+
+#[no_mangle]
 pub extern "C" fn __ffi_cim920_get_version(instance: *mut CIM920, duration_secs: f32) -> *mut i8 {
     let cim920 = unsafe { &mut *instance };
     let string = match cim920

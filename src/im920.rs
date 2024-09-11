@@ -25,6 +25,7 @@ pub struct IM920<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> {
     mode_tx: SpscTx<LineMarker, 8>,
 
     node_number: SwmrReader<Option<u16>>,
+    group_number: SwmrReader<Option<u32>>,
     version: SwmrReader<[u8; 32]>,
     result_rx: SpscRx<IM920Result, 4>,
 
@@ -44,6 +45,8 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
         let (mode_tx, mode_rx) = Spsc::new();
 
         let (nn_tx, nn_rx) = Swmr::new(None);
+        let (gn_tx, gn_rx) = Swmr::new(None);
+
         let (ver_tx, ver_rx) = Swmr::new([0; 32]);
         let (on_data_tx, on_data_rx) = Swmr::<Option<DataCallback>>::new(None);
         let (result_tx, result_rx) = Spsc::new();
@@ -106,6 +109,13 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
                                 };
                                 let _ = nn_tx.write(Some(node_number));
                             }
+                            Some(LineMarker::GroupNumber) => {
+                                let group_number = match parser::u32(&data) {
+                                    Ok((_, group_number)) => group_number,
+                                    _ => continue,
+                                };
+                                let _ = gn_tx.write(Some(group_number));
+                            }
                             Some(LineMarker::Result) => {
                                 let result = match data[0] {
                                     b'O' => IM920Result::Ok,
@@ -127,6 +137,7 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
             dev_tx: dev_tx,
             mode_tx,
             node_number: nn_rx,
+            group_number: gn_rx,
             version: ver_rx,
             result_rx,
             on_data_cb: on_data_tx,
@@ -153,6 +164,25 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
 
         if self.node_number.wait_available(timeout, self.time) {
             Ok(self.node_number.unwrap())
+        } else {
+            Err(Error::Timeout)
+        }
+    }
+
+    pub fn get_group_number(&mut self, timeout: Duration) -> Result<u32, Error<E>> {
+        if self.group_number.is_some() {
+            return Ok(self.group_number.unwrap());
+        }
+
+        self.mode_tx
+            .enqueue(LineMarker::GroupNumber)
+            .map_err(|e| Error::Fifo(e))?;
+        self.dev_tx
+            .write(b"RDGN\r\n")
+            .map_err(|e| Error::SerialError(e))?;
+
+        if self.group_number.wait_available(timeout, self.time) {
+            Ok(self.group_number.unwrap())
         } else {
             Err(Error::Timeout)
         }
@@ -198,14 +228,14 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
         self.dev_tx
             .write(
                 format!(
-                    "TXDG{:04X},{}\r\n",
+                    "TXDU {:04X},{}\r\n",
                     packet.node_id,
                     packet
                         .data
                         .iter()
                         .map(|x| format!("{:02X}", x))
                         .collect::<Vec<String>>()
-                        .join(",")
+                        .join("")
                 )
                 .as_bytes(),
             )

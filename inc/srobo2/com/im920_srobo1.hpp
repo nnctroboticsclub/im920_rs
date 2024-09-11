@@ -16,6 +16,7 @@ class IM910_SRobo1 : public robotics::network::Stream<uint8_t, uint16_t> {
   }
 
   uint16_t GetNodeNumber() { return im920_->GetNodeNumber(1.0f); }
+  uint16_t GetGroupNumber() { return im920_->GetGroupNumber(1.0f); }
 
   std::string GetVersion() { return im920_->GetVersion(1.0f); }
 
