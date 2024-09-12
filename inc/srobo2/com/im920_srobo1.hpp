@@ -5,7 +5,7 @@
 #include <srobo2/com/im920.hpp>
 
 namespace srobo2::com {
-class IM920_SRobo1 : public robotics::network::Stream<uint8_t, uint16_t> {
+class IM920_SRobo1 : public robotics::network::Stream<uint8_t, uint16_t, bool> {
   srobo2::com::CIM920 *im920_;
 
  public:
@@ -20,8 +20,8 @@ class IM920_SRobo1 : public robotics::network::Stream<uint8_t, uint16_t> {
 
   std::string GetVersion() { return im920_->GetVersion(0.05f); }
 
-  void Send(uint16_t dest, uint8_t *data, uint32_t len) override {
-    im920_->Send(dest, data, len, 1.0f);
+  bool Send(uint16_t dest, uint8_t *data, uint32_t len) override {
+    return im920_->Send(dest, data, len, 1.0f);
   }
 };
 }  // namespace srobo2::com

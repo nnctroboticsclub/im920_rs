@@ -55,10 +55,10 @@ class CIM920 {
     srobo2::ffi::__ffi_cim920_on_data(im920_, &HandleOnData, &context_);
   }
 
-  void Send(uint16_t dest, const uint8_t* data, size_t len,
+  bool Send(uint16_t dest, const uint8_t* data, size_t len,
             float duration_secs) {
-    srobo2::ffi::__ffi_cim920_transmit_delegate(im920_, dest, data, len,
-                                                duration_secs);
+    return srobo2::ffi::__ffi_cim920_transmit_delegate(im920_, dest, data, len,
+                                                       duration_secs);
   };
 };
 }  // namespace srobo2::com
