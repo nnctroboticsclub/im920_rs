@@ -33,7 +33,7 @@ class CIM920 {
     return srobo2::ffi::__ffi_cim920_get_node_number(im920_, duration_secs);
   }
 
-  uint16_t GetGroupNumber(float duration_secs) {
+  uint32_t GetGroupNumber(float duration_secs) {
     return srobo2::ffi::__ffi_cim920_get_group_number(im920_, duration_secs);
   }
 
