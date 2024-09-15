@@ -26,6 +26,7 @@ pub struct IM920<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> {
 
     node_number: SwmrReader<Option<u16>>,
     group_number: SwmrReader<Option<u32>>,
+    channel: SwmrReader<Option<u8>>,
     version: SwmrReader<[u8; 32]>,
     result_rx: SpscRx<IM920Result, 4>,
 
@@ -46,6 +47,7 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
 
         let (nn_tx, nn_rx) = Swmr::new(None);
         let (gn_tx, gn_rx) = Swmr::new(None);
+        let (ch_tx, ch_rx) = Swmr::new(None);
 
         let (ver_tx, ver_rx) = Swmr::new([0; 32]);
         let (on_data_tx, on_data_rx) = Swmr::<Option<DataCallback>>::new(None);
@@ -124,6 +126,13 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
                                 };
                                 let _ = result_tx.enqueue(result);
                             }
+                            Some(LineMarker::Channel) => {
+                                let channel = match parser::u8(&data) {
+                                    Ok((_, channel)) => channel,
+                                    _ => continue,
+                                };
+                                let _ = ch_tx.write(Some(channel));
+                            }
                             None => {
                                 let _ = unknown_lines_tx.enqueue(data);
                             }
@@ -138,6 +147,7 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
             mode_tx,
             node_number: nn_rx,
             group_number: gn_rx,
+            channel: ch_rx,
             version: ver_rx,
             result_rx,
             on_data_cb: on_data_tx,
@@ -164,6 +174,26 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
 
         if self.node_number.wait_available(timeout, self.time) {
             Ok(self.node_number.unwrap())
+        } else {
+            Err(Error::Timeout)
+        }
+    }
+
+    pub fn get_channel(&mut self, timeout: Duration) -> Result<u8, Error<E>> {
+        if self.channel.is_some() {
+            return Ok(self.channel.unwrap());
+        }
+
+        self.mode_tx
+            .enqueue(LineMarker::Channel)
+            .map_err(|e| Error::Fifo(e))?;
+
+        self.dev_tx
+            .write(b"RDCH\r\n")
+            .map_err(|e| Error::SerialError(e))?;
+
+        if self.channel.wait_available(timeout, self.time) {
+            Ok(self.channel.unwrap())
         } else {
             Err(Error::Timeout)
         }
@@ -228,7 +258,7 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
         self.dev_tx
             .write(
                 format!(
-                    "TXDU {:04X},{}\r\n",
+                    "TXDG {:04X},{}\r\n",
                     packet.node_id,
                     packet
                         .data
@@ -239,6 +269,54 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
                 )
                 .as_bytes(),
             )
+            .map_err(|e| Error::SerialError(e))?;
+
+        match self.get_result(timeout) {
+            Ok(IM920Result::Ok) => Ok(()),
+            Ok(IM920Result::Ng) => Err(Error::OperationFailed),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn enable_write(&mut self, timeout: Duration) -> Result<(), Error<E>> {
+        self.mode_tx
+            .enqueue(LineMarker::Result)
+            .map_err(|e| Error::Fifo(e))?;
+
+        self.dev_tx
+            .write("ENWR\r\n".as_bytes())
+            .map_err(|e| Error::SerialError(e))?;
+
+        match self.get_result(timeout) {
+            Ok(IM920Result::Ok) => Ok(()),
+            Ok(IM920Result::Ng) => Err(Error::OperationFailed),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn set_node_number(&mut self, node_number: u16, timeout: Duration) -> Result<(), Error<E>> {
+        self.mode_tx
+            .enqueue(LineMarker::Result)
+            .map_err(|e| Error::Fifo(e))?;
+
+        self.dev_tx
+            .write(format!("STNN{node_number:04x}\r\n").as_bytes())
+            .map_err(|e| Error::SerialError(e))?;
+
+        match self.get_result(timeout) {
+            Ok(IM920Result::Ok) => Ok(()),
+            Ok(IM920Result::Ng) => Err(Error::OperationFailed),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn set_channel(&mut self, channel: u8, timeout: Duration) -> Result<(), Error<E>> {
+        self.mode_tx
+            .enqueue(LineMarker::Result)
+            .map_err(|e| Error::Fifo(e))?;
+
+        self.dev_tx
+            .write(format!("STCH{channel:02x}\r\n").as_bytes())
             .map_err(|e| Error::SerialError(e))?;
 
         match self.get_result(timeout) {

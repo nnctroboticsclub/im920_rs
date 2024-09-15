@@ -33,8 +33,26 @@ class CIM920 {
     return srobo2::ffi::__ffi_cim920_get_node_number(im920_, duration_secs);
   }
 
+  bool SetNodeNumber(uint16_t node_number, float duration_secs) {
+    return srobo2::ffi::__ffi_cim920_set_node_number(im920_, node_number,
+                                                     duration_secs);
+  }
+
   uint32_t GetGroupNumber(float duration_secs) {
     return srobo2::ffi::__ffi_cim920_get_group_number(im920_, duration_secs);
+  }
+
+  uint8_t GetChannel(float duration_secs) {
+    return srobo2::ffi::__ffi_cim920_get_channel(im920_, duration_secs);
+  }
+
+  bool SetChannel(uint8_t channel, float duration_secs) {
+    return srobo2::ffi::__ffi_cim920_set_channel(im920_, channel,
+                                                 duration_secs);
+  }
+
+  bool EnableWrite(float duration_secs) {
+    return srobo2::ffi::__ffi_cim920_enable_write(im920_, duration_secs);
   }
 
   std::string GetVersion(float duration_secs) {

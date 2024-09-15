@@ -56,6 +56,41 @@ pub extern "C" fn __ffi_cim920_get_node_number(instance: *mut CIM920, duration_s
 }
 
 #[no_mangle]
+pub extern "C" fn __ffi_cim920_set_node_number(
+    instance: *mut CIM920,
+    node_number: u16,
+    duration_secs: f32,
+) -> bool {
+    let cim920 = unsafe { &mut *instance };
+    cim920
+        .im920
+        .set_node_number(node_number, Duration::from_secs_f32(duration_secs))
+        .is_ok()
+}
+
+#[no_mangle]
+pub extern "C" fn __ffi_cim920_set_channel(
+    instance: *mut CIM920,
+    channel: u8,
+    duration_secs: f32,
+) -> bool {
+    let cim920 = unsafe { &mut *instance };
+    cim920
+        .im920
+        .set_channel(channel, Duration::from_secs_f32(duration_secs))
+        .is_ok()
+}
+
+#[no_mangle]
+pub extern "C" fn __ffi_cim920_enable_write(instance: *mut CIM920, duration_secs: f32) -> bool {
+    let cim920 = unsafe { &mut *instance };
+    cim920
+        .im920
+        .enable_write(Duration::from_secs_f32(duration_secs))
+        .is_ok()
+}
+
+#[no_mangle]
 pub extern "C" fn __ffi_cim920_get_group_number(instance: *mut CIM920, duration_secs: f32) -> u32 {
     let cim920 = unsafe { &mut *instance };
     let group_number = cim920
@@ -63,6 +98,15 @@ pub extern "C" fn __ffi_cim920_get_group_number(instance: *mut CIM920, duration_
         .get_group_number(Duration::from_secs_f32(duration_secs));
 
     group_number.unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn __ffi_cim920_get_channel(instance: *mut CIM920, duration_secs: f32) -> u8 {
+    let cim920 = unsafe { &mut *instance };
+    cim920
+        .im920
+        .get_channel(Duration::from_secs_f32(duration_secs))
+        .unwrap_or(0)
 }
 
 #[no_mangle]
