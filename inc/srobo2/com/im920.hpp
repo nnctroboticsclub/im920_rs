@@ -5,7 +5,7 @@
 
 #include <srobo2/ffi/base.hpp>
 #include <srobo2/ffi/im920.hpp>
-#include <robotics/logger/logger.hpp>
+#include <logger/logger.hpp>
 
 namespace srobo2::com {
 class CIM920 {
