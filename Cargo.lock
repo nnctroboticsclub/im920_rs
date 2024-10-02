@@ -290,6 +290,7 @@ dependencies = [
 [[package]]
 name = "srobo_base"
 version = "0.1.0"
+source = "git+ssh://git@github.com/nnctroboticsclub/srobo_base.git#2c638f84fcb3bdf4ee6bc9e651e6ce19dba98a29"
 dependencies = [
  "cbindgen",
 ]
