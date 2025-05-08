@@ -6,16 +6,14 @@ use srobo_base::{
     parser,
     time::TimeImpl,
     utils::{
-        fifo::{Spsc, SpscRx, SpscTx},
+        fifo::{Error as FifoError, Spsc, SpscRx, SpscTx},
         lined::Lined,
         string_queue::StringQueue,
         swmr::{Swmr, SwmrReader, SwmrWriter},
     },
 };
 
-use crate::{
-    error::Error, line_marker::LineMarker, packet::Packet, result::IM920Result, rx_data::RxData,
-};
+use crate::{line_marker::LineMarker, packet::Packet, result::IM920Result, rx_data::RxData, Error};
 
 type DataCallback = Box<dyn Fn(RxData) -> ()>;
 
@@ -62,7 +60,16 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
                 let rx_buffer = unsafe { &mut *rx_buffer };
                 let lined = unsafe { &mut *lined };
 
-                lined.feed(data).expect("Failed to feed data");
+                match lined.feed(data) {
+                    Ok(_) => {}
+                    Err(FifoError::Full) => {
+                        // buffer overflow detected. reset fifo buffer (discard all data)
+                        lined.reset();
+                    }
+                    _ => {
+                        panic!("Error in lined feed (should not happen)");
+                    }
+                }
 
                 while let Some(data) = lined.get_line() {
                     if data.len() > 2 && data[..3] == [48, 48, 44] {
