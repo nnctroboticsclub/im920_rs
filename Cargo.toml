@@ -7,7 +7,7 @@ edition = "2021"
 cbindgen = "0.27.0"
 
 [dependencies]
-srobo_base = { git = "ssh://git@github.com/nnctroboticsclub/srobo_base.git", features=["alloc"] }
+srobo_base = { git = "ssh://git@github.com/nnctroboticsclub/srobo_base.git", features=["alloc"], tag = "v1.0.1 }
 
 [features]
 default = []
