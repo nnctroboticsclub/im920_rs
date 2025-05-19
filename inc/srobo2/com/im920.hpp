@@ -1,11 +1,11 @@
 #pragma once
 
-#include <functional>
 #include <cstring>
+#include <functional>
 
+#include <logger/logger.hpp>
 #include <srobo2/ffi/base.hpp>
 #include <srobo2/ffi/im920.hpp>
-#include <logger/logger.hpp>
 
 namespace srobo2::com {
 class CIM920 {
@@ -73,6 +73,10 @@ class CIM920 {
     srobo2::ffi::__ffi_cim920_on_data(im920_, &HandleOnData, &context_);
   }
 
+  bool Send(const uint8_t* data, size_t len, float duration_secs) {
+    return srobo2::ffi::__ffi_cim920_transmit_broadcast(im920_, data, len,
+                                                        duration_secs);
+  }
   bool Send(uint16_t dest, const uint8_t* data, size_t len,
             float duration_secs) {
     return srobo2::ffi::__ffi_cim920_transmit_delegate(im920_, dest, data, len,

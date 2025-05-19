@@ -257,6 +257,37 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
         }
     }
 
+    pub fn transmit_broadcast(
+        &mut self,
+        packet: Packet,
+        timeout: Duration,
+    ) -> Result<(), Error<E>> {
+        self.mode_tx
+            .enqueue(LineMarker::Result)
+            .map_err(|e| Error::Fifo(e))?;
+
+        self.dev_tx
+            .write(
+                format!(
+                    "TXDA {}\r\n",
+                    packet
+                        .data
+                        .iter()
+                        .map(|x| format!("{:02X}", x))
+                        .collect::<Vec<String>>()
+                        .join("")
+                )
+                .as_bytes(),
+            )
+            .map_err(|e| Error::SerialError(e))?;
+
+        match self.get_result(timeout) {
+            Ok(IM920Result::Ok) => Ok(()),
+            Ok(IM920Result::Ng) => Err(Error::OperationFailed),
+            Err(e) => Err(e),
+        }
+    }
+
     pub fn transmit_delegate(&mut self, packet: Packet, timeout: Duration) -> Result<(), Error<E>> {
         self.mode_tx
             .enqueue(LineMarker::Result)

@@ -122,6 +122,25 @@ pub extern "C" fn __ffi_cim920_get_version(instance: *mut CIM920, duration_secs:
 
     return string.as_ptr() as *mut i8;
 }
+
+#[no_mangle]
+pub extern "C" fn __ffi_cim920_transmit_broadcast(
+    instance: *mut CIM920,
+    data: *const u8,
+    len: usize,
+    duration_secs: f32,
+) -> bool {
+    let packet = Packet {
+        node_id: 0,
+        data: unsafe { core::slice::from_raw_parts(data, len) },
+    };
+
+    unsafe { &mut *instance }
+        .im920
+        .transmit_broadcast(packet, Duration::from_secs_f32(duration_secs))
+        .is_ok()
+}
+
 #[no_mangle]
 pub extern "C" fn __ffi_cim920_transmit_delegate(
     instance: *mut CIM920,

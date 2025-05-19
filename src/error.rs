@@ -1,3 +1,4 @@
+use core::error::Error as CoreError;
 use srobo_base::utils::fifo;
 
 #[derive(Debug)]
