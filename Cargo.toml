@@ -3,7 +3,7 @@ name = "im920_rs"
 license = "MIT"
 authors = ["syoch <syoch64@gmail.com>"]
 description = "IM920sL library for Rust"
-version = "0.1.0"
+version = "1.0.5"
 edition = "2021"
 
 [build-dependencies]
