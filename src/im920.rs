@@ -7,7 +7,7 @@ use srobo_base::{
     time::TimeImpl,
     utils::{
         fifo::{Error as FifoError, Spsc, SpscRx, SpscTx},
-        lined::Lined,
+        lined::{self, Lined},
         string_queue::StringQueue,
         swmr::{Swmr, SwmrReader, SwmrWriter},
     },
@@ -52,7 +52,7 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
         let (result_tx, result_rx) = Spsc::new();
         let (unknown_lines_tx, _unknown_lines_rx) = StringQueue::<64, 2>::new();
 
-        let lined = Box::into_raw(Box::new(Lined::new()));
+        let lined = Box::into_raw(Box::new(Lined::<64>::new()));
         let rx_buffer = Box::into_raw(Box::new([0; 128]));
 
         dev_rx
@@ -64,7 +64,7 @@ impl<'a, E, S: WritableStream<Error = E>, Time: TimeImpl> IM920<'a, E, S, Time> 
                     Ok(_) => {}
                     Err(FifoError::Full) => {
                         // buffer overflow detected. reset fifo buffer (discard all data)
-                        lined.reset();
+                        lined.reset_queue();
                     }
                     _ => {
                         panic!("Error in lined feed (should not happen)");
